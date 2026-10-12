@@ -7,7 +7,7 @@ require (
 	github.com/molecule-man/go-brrr v1.2.0
 	github.com/valyala/bytebufferpool v1.0.0
 	golang.org/x/crypto v0.57.0
-	golang.org/x/net v0.59.0
+	golang.org/x/net v0.60.0
 	golang.org/x/sys v0.48.0
 )
 
