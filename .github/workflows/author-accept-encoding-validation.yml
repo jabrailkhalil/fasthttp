@@ -7,6 +7,10 @@ on:
 permissions:
   contents: read
 
+defaults:
+  run:
+    shell: bash
+
 env:
   SOURCE_HEAD: a2ff127082faa2bebb7c555151d3dc48d8d1454c
   SOURCE_BASE: fe0c30ad7f2dafba84c7c0fd7582df6cf0f8d81d
@@ -31,6 +35,7 @@ jobs:
         shell: bash
         run: go test -json -shuffle=on ./... | tee head.jsonl
       - name: Full shuffled race suite
+        if: always()
         shell: bash
         run: go test -json -race -shuffle=on ./... | tee race.jsonl
       - uses: actions/upload-artifact@v7
@@ -53,8 +58,10 @@ jobs:
       - name: Clean upstream suite
         run: go test -json -shuffle=on ./... | tee base.jsonl
       - name: Clean upstream race suite
+        if: always()
         run: go test -json -race -shuffle=on ./... | tee base-race.jsonl
       - name: New tests must fail on unmodified production code
+        if: always()
         run: |
           git restore --source="$SOURCE_HEAD" --worktree -- accept_encoding_test.go
           git diff --exit-code -- '*.go' ':!accept_encoding_test.go'
