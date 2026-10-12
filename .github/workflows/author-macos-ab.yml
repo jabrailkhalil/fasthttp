@@ -1,0 +1,53 @@
+name: Author macOS baseline comparison
+
+on:
+  push:
+    branches: [validation/accept-encoding-macos]
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  compare:
+    strategy:
+      fail-fast: false
+      matrix:
+        arm: [base, head]
+        include:
+          - arm: base
+            ref: fe0c30ad7f2dafba84c7c0fd7582df6cf0f8d81d
+          - arm: head
+            ref: a2ff127082faa2bebb7c555151d3dc48d8d1454c
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ matrix.ref }}
+      - uses: actions/setup-go@v7
+        with:
+          go-version: 1.27.x
+      - run: go version
+      - name: Record unchanged stream-test flake without modifying assertions
+        run: |
+          set +e
+          go test -json -run '^TestStreamBodyRequestContentLength$' -count=200 . > stream-repro.jsonl 2>&1
+          result=$?
+          set -e
+          printf '%s\n' "$result" > stream-exit.txt
+          if grep -q 'build failed' stream-repro.jsonl; then exit 1; fi
+      - name: Full shuffled suite
+        run: go test -json -shuffle=on ./... | tee full.jsonl
+      - name: Full shuffled race suite
+        if: always()
+        run: go test -json -race -shuffle=on ./... | tee race.jsonl
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: macos-${{ matrix.arm }}
+          path: |
+            *.jsonl
+            stream-exit.txt
