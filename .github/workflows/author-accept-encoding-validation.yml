@@ -61,7 +61,7 @@ jobs:
         run: go test -json -shuffle=on ./... | tee "$RUNNER_TEMP/ascii-validation/base.jsonl"
       - name: Clean upstream race suite
         if: always()
-        run: go test -json -race -shuffle=on ./... | tee "$RUNNER_TEMP/ascii-validation/base-"$RUNNER_TEMP/ascii-validation/race.jsonl""
+        run: go test -json -race -shuffle=on ./... | tee "$RUNNER_TEMP/ascii-validation/base-race.jsonl"
       - name: New tests must fail on unmodified production code
         if: always()
         run: |
