@@ -12,7 +12,7 @@ defaults:
     shell: bash
 
 env:
-  SOURCE_HEAD: f9282c1e84e74159354c704516bf032313545ca7
+  SOURCE_HEAD: 4ebca700c80b684cf8db9e2335fa24639ad5565b
   SOURCE_BASE: fe0c30ad7f2dafba84c7c0fd7582df6cf0f8d81d
 
 jobs:
@@ -26,23 +26,24 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: f9282c1e84e74159354c704516bf032313545ca7
+          ref: 4ebca700c80b684cf8db9e2335fa24639ad5565b
       - uses: actions/setup-go@v7
         with:
           go-version: ${{ matrix.go }}
+      - run: mkdir -p "$RUNNER_TEMP/ascii-validation"
       - run: go version
       - name: Full shuffled suite
         shell: bash
-        run: go test -json -shuffle=on ./... | tee head.jsonl
+        run: go test -json -shuffle=on ./... | tee "$RUNNER_TEMP/ascii-validation/head.jsonl"
       - name: Full shuffled race suite
         if: always()
         shell: bash
-        run: go test -json -race -shuffle=on ./... | tee race.jsonl
+        run: go test -json -race -shuffle=on ./... | tee "$RUNNER_TEMP/ascii-validation/race.jsonl"
       - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: head-${{ matrix.os }}-${{ matrix.go }}
-          path: '*.jsonl'
+          path: ${{ runner.temp }}/ascii-validation/*.jsonl
 
   baseline:
     runs-on: ubuntu-latest
@@ -54,37 +55,38 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version: 1.26.x
+      - run: mkdir -p "$RUNNER_TEMP/ascii-validation"
       - run: go version
       - name: Clean upstream suite
-        run: go test -json -shuffle=on ./... | tee base.jsonl
+        run: go test -json -shuffle=on ./... | tee "$RUNNER_TEMP/ascii-validation/base.jsonl"
       - name: Clean upstream race suite
         if: always()
-        run: go test -json -race -shuffle=on ./... | tee base-race.jsonl
+        run: go test -json -race -shuffle=on ./... | tee "$RUNNER_TEMP/ascii-validation/base-"$RUNNER_TEMP/ascii-validation/race.jsonl""
       - name: New tests must fail on unmodified production code
         if: always()
         run: |
           git restore --source="$SOURCE_HEAD" --worktree -- accept_encoding_test.go
           git diff --exit-code -- '*.go' ':!accept_encoding_test.go'
           set +e
-          go test -json -run 'Test(RequestHeaderHasAcceptEncodingTokens|CompressHandlerAcceptEncodingTokens)$' -count=1 . > negative.jsonl 2>&1
+          go test -json -run 'Test(RequestHeaderHasAcceptEncodingTokens|CompressHandlerAcceptEncodingTokens)$' -count=1 . > "$RUNNER_TEMP/ascii-validation/negative.jsonl" 2>&1
           result=$?
           set -e
           test "$result" -eq 1
-          grep -q 'Content-Encoding = ' negative.jsonl
-          grep -q 'want gzip' negative.jsonl
-          if grep -q 'build failed' negative.jsonl; then exit 1; fi
+          grep -q 'Content-Encoding = ' "$RUNNER_TEMP/ascii-validation/negative.jsonl"
+          grep -q 'want gzip' "$RUNNER_TEMP/ascii-validation/negative.jsonl"
+          if grep -q 'build failed' "$RUNNER_TEMP/ascii-validation/negative.jsonl"; then exit 1; fi
       - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: baseline-and-negative-control
-          path: '*.jsonl'
+          path: ${{ runner.temp }}/ascii-validation/*.jsonl
 
   lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: f9282c1e84e74159354c704516bf032313545ca7
+          ref: 4ebca700c80b684cf8db9e2335fa24639ad5565b
       - uses: actions/setup-go@v7
         with:
           go-version: 1.27.x
@@ -98,26 +100,27 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: f9282c1e84e74159354c704516bf032313545ca7
+          ref: 4ebca700c80b684cf8db9e2335fa24639ad5565b
           fetch-depth: 0
       - uses: actions/setup-go@v7
         with:
           go-version: 1.26.x
+      - run: mkdir -p "$RUNNER_TEMP/ascii-validation"
       - name: Reviewed comparator must fail both public API regressions
         run: |
           git restore --source=a2ff127082faa2bebb7c555151d3dc48d8d1454c --worktree -- cookie.go
           test "$(git diff --name-only)" = cookie.go
           set +e
-          go test -v -run '^TestRequestHeaderHasAcceptEncodingTokens$' -count=1 . > ascii-mutation.log 2>&1
+          go test -v -run '^TestRequestHeaderHasAcceptEncodingTokens$' -count=1 . > "$RUNNER_TEMP/ascii-validation/ascii-mutation.log" 2>&1
           result=$?
           set -e
           test "$result" -eq 1
-          grep -Fq 'HasAcceptEncoding("x~codec", "x^codec") = true, want false' ascii-mutation.log
-          grep -Fq 'HasAcceptEncodingBytes("x~codec", "x^codec") = true, want false' ascii-mutation.log
-          grep -Fq 'HasAcceptEncoding("x^codec", "x~codec") = true, want false' ascii-mutation.log
-          grep -Fq 'HasAcceptEncodingBytes("x^codec", "x~codec") = true, want false' ascii-mutation.log
+          grep -Fq 'HasAcceptEncoding("x~codec", "x^codec") = true, want false' "$RUNNER_TEMP/ascii-validation/ascii-mutation.log"
+          grep -Fq 'HasAcceptEncodingBytes("x~codec", "x^codec") = true, want false' "$RUNNER_TEMP/ascii-validation/ascii-mutation.log"
+          grep -Fq 'HasAcceptEncoding("x^codec", "x~codec") = true, want false' "$RUNNER_TEMP/ascii-validation/ascii-mutation.log"
+          grep -Fq 'HasAcceptEncodingBytes("x^codec", "x~codec") = true, want false' "$RUNNER_TEMP/ascii-validation/ascii-mutation.log"
       - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: ascii-mutation-proof
-          path: ascii-mutation.log
+          path: ${{ runner.temp }}/ascii-validation/ascii-mutation.log
